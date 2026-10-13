@@ -1,0 +1,4 @@
+# Audio analysis environment (Python 3.10 exactly: essentia-tensorflow has no wheels for newer
+# versions). Used only by scripts/essentia_analyzer.py.
+essentia-tensorflow==2.1b6.dev1389
+numpy==2.2.6
