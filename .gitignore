@@ -26,9 +26,10 @@ docs/
 CLAUDE.md
 .claude/
 
-# Android signing keys
+# Android signing keys and their passwords
 *.jks
 *.keystore
+android/keystore.properties
 
 # Music and trash
 MP3 Songs/
