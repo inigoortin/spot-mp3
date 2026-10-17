@@ -1,5 +1,11 @@
 # Changelog
 
+## Mi Música 1.12
+
+- The connection dot on the profile circle is no longer cut off in the top bar.
+- Release build signed with your own key (`android/keystore.properties`) and optimised with R8
+  (APK 19 MB → 1.8 MB).
+
 ## 1.0 — first public release
 
 - Pipeline: Spotify export (top tracks + Liked Songs + chosen playlists), YouTube Music downloads

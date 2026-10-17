@@ -14,8 +14,8 @@ android {
         applicationId = "com.mimusica.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.11"
+        versionCode = 13
+        versionName = "1.12"
     }
 
     // Release signing key: android/keystore.properties (not in git). Without it, release is signed
