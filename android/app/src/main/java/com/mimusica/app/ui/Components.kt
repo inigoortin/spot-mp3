@@ -1,6 +1,7 @@
 package com.mimusica.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,10 +102,13 @@ fun connectionColor(c: Connection): Color = when (c) {
 
 /** Profile circle (like Spotify's) with a dot in the colour of the connection state. */
 @Composable
-fun ProfileAvatar(name: String?, connection: Connection, size: Dp, modifier: Modifier = Modifier) {
+fun ProfileAvatar(name: String?, connection: Connection, size: Dp, modifier: Modifier = Modifier,
+                  onClickLabel: String? = null, onClick: (() -> Unit)? = null) {
+    // Only the inner circle is clipped (and clickable): clipping the whole Box would cut the dot
     Box(modifier.size(size)) {
         Box(
             Modifier.fillMaxSize().clip(androidx.compose.foundation.shape.CircleShape)
+                .then(if (onClick != null) Modifier.clickable(onClickLabel = onClickLabel, onClick = onClick) else Modifier)
                 .background(Brush.linearGradient(listOf(com.mimusica.app.ui.theme.Accent, AccentDark))),
             contentAlignment = Alignment.Center,
         ) {

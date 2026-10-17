@@ -9,15 +9,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.mimusica.app.ui.Connection
 import com.mimusica.app.ui.ProfileAvatar
@@ -143,8 +140,9 @@ private fun AppRoot(openAt: String? = null, onOpened: () -> Unit = {}, vm: AppVi
                 else -> TopAppBar(
                     navigationIcon = {
                         ProfileAvatar(vm.macName, state.connection, 34.dp,
-                            Modifier.padding(start = 12.dp, end = 4.dp).clip(CircleShape)
-                                .clickable(onClickLabel = "Ajustes") { nav.navigate("settings") { launchSingleTop = true } })
+                            Modifier.padding(start = 12.dp, end = 4.dp), onClickLabel = "Ajustes") {
+                            nav.navigate("settings") { launchSingleTop = true }
+                        }
                     },
                     title = { Text(TABS.firstOrNull { it.route == route }?.label?.let { if (it == "Inicio") "Mi Música" else it } ?: "Mi Música",
                                    fontWeight = FontWeight.Bold) },
