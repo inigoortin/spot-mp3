@@ -1,9 +1,15 @@
 # spot-mp3
 
-A personal music pipeline for macOS: it takes your Spotify listening (top tracks and Liked Songs),
-builds a local MP3 library from YouTube Music, analyses every song locally (mood, energy, tempo,
-key, genre), creates playlists from those features and keeps a basic MP3 player in sync. An
-Android app (**Mi Música**) controls it from your phone over the home Wi-Fi.
+Keep a basic MP3 player in step with what you listen to on Spotify. Your Mac downloads the songs,
+analyses each one (energy, mood, tempo, key, genre), sorts them into playlists that update
+themselves and syncs them to the player. **Mi Música**, an Android app, controls it all from your
+phone over the home Wi-Fi.
+
+![Mi Música app](assets/screenshots.png)
+*The phone app on invented demo data: home, playlists, a playlist and the playlist creator.*
+
+> **Status:** works on **macOS** with the **Android** app. An iPhone app and Windows support
+> are not built yet.
 
 > **Disclaimer — use at your own risk.** This project downloads audio from YouTube through
 > [spotDL](https://github.com/spotDL/spotify-downloader). Downloading copyrighted music without
@@ -14,310 +20,177 @@ Android app (**Mi Música**) controls it from your phone over the home Wi-Fi.
 
 Program output and the phone app's screens are in Spanish; code, comments and docs are in English.
 
-## How it works
+## Why
+Some days you want to leave the phone at home, for a run or just to switch off, and still have
+the songs you are listening to right now. A small MP3 player covers that as long as it stays up to
+date, and copying music over by hand is a job that keeps getting put off. spot-mp3 does it for
+you: what you play and like on Spotify ends up on the player, and what you stop listening to drops
+off. It also builds playlists from audio features, like "Running" with everything above 140 BPM
+or an upbeat "Verano 2026", and you can adjust them from your phone.
 
-```
-Spotify (top tracks + Liked Songs)
-   │  spotify_export.py
-   ▼
-data/spotify_export.csv ──► library_cleanup.py   (songs you no longer listen to → 7-day trash)
-   │  download_manager.py (spotDL + YouTube Music: official studio tracks first)
-   ▼
-MP3 Songs/ ──► version_audit.py   (swaps live takes / covers / music videos for studio tracks)
-           ──► loudness.py         (evens out loudness, lossless)
-           ──► essentia_analyzer.py (local audio analysis)
-   ▼
-data/all_songs.csv (update_csv_schema.py + enrich_spotify_metrics.py)
-   │  playlist_builder.py
-   ▼
-Playlists/*.m3u8 ──► spotify_upload.py (private Spotify playlists)
-                 ──► mp3_export.py     (MP3 Player Card/ for a basic MP3 player)
-```
+## What it does
+- **Library from your listening**: your top tracks and Liked Songs, downloaded as the official
+  studio version; songs you stop listening to are retired.
+- **Local audio analysis**: energy, danceability, mood, tempo, key and genre for every song.
+- **Living playlists**: defined by criteria and refreshed with new songs on every run; publish
+  them to Spotify as private playlists if you like.
+- **MP3 player sync**: the player's card is updated when you plug it in, with even loudness.
+- **Phone app**: browse, edit and create playlists, review doubtful song versions, and start
+  updates; orders made while the Mac is asleep run when it is back.
 
-`scripts/runner.sh` runs the whole chain. The phone app talks to `scripts/agent_server.py`,
-which runs on the Mac.
+## Getting started
+You need a Mac, Python 3.10+ (plus Python 3.10 exactly for the audio analysis;
+[uv](https://docs.astral.sh/uv/) makes that easy), a Spotify account and, for the app, an
+Android phone and the Android SDK with JDK 21.
 
-## Folder layout
-
-| Folder | Contents |
-|---|---|
-| `scripts/` | All the Python scripts and `runner.sh` |
-| `data/` | Generated data (`all_songs.csv`, `spotify_export.csv`, analysis results, reviews…), with `cache/` (external services, covers), `private/` (phone tokens, Spotify login) and `locks/`. Your own `artist_genres.csv` lives here too |
-| `MP3 Songs/` | The music library |
-| `MP3 Player Card/` | What goes on the MP3 player's card (hard links: no extra space) |
-| `Papelera MP3/` | Trash for removed or replaced MP3s, emptied after 7 days |
-| `Playlists/` | Generated `.m3u8` playlists and `playlists.json` |
-| `models/` | Essentia models (downloaded) |
-| `logs/` | Pipeline, agent and MP3-sync logs |
-| `android/` | Source of the Mi Música phone app (Kotlin + Jetpack Compose) |
-
-Everything except `scripts/`, `android/` and the templates is created on first use and never
-committed (see `.gitignore`).
-
-## Requirements
-
-- **macOS** (the agent, notifications, `launchd` and disk detection are Mac-specific).
-- **Python 3.10+** for the main environment, and **Python 3.10 exactly** for the audio analysis
-  (`essentia-tensorflow` has no wheels for newer versions). [uv](https://docs.astral.sh/uv/) makes
-  the second one easy.
-- **ffmpeg** (spotDL can install its own copy, see below).
-- A **Spotify account** and a free Spotify developer app (for the Client ID).
-- Optional: an **Android phone** for the app, and **Android Studio** or the Android SDK + JDK 17
-  to build it.
-
-Python libraries (versions known to work are pinned in the files):
-
-| File | Libraries |
-|---|---|
-| `requirements.txt` | spotdl, spotipy, ytmusicapi, pandas, mutagen, requests, fastapi, uvicorn, pydantic, pillow, zeroconf |
-| `requirements-essentia.txt` | essentia-tensorflow, numpy |
-
-## Setup
-
-All commands run from the project folder unless stated otherwise.
-
-**1. Python environments**
+**1. Install** (from the project folder; ~40 MB of models go to `models/`):
 
 ```bash
 python3 -m venv .venv
-```
-
-```bash
 .venv/bin/python -m pip install -r requirements.txt
-```
-
-```bash
 .venv/bin/spotdl --download-ffmpeg
-```
-
-```bash
 uv venv --python 3.10 .venv-essentia
-```
-
-```bash
 uv pip install --python .venv-essentia/bin/python -r requirements-essentia.txt
-```
-
-**2. Essentia models** (~40 MB, into `models/`)
-
-```bash
 bash scripts/download_models.sh
 ```
 
-**3. Spotify app.** In the [Spotify developer dashboard](https://developer.spotify.com/dashboard),
-create an app with the Web API and the redirect URI `http://127.0.0.1:8888/callback`. While the
-app is in development mode, only the accounts listed under *User Management* can log in (add
-yours). Copy its **Client ID** (no Client Secret is needed: login uses PKCE).
-
-**4. Settings.** Copy the template and fill in the Client ID:
+**2. Connect Spotify.** In the [Spotify developer dashboard](https://developer.spotify.com/dashboard),
+create an app with the Web API and the redirect URI `http://127.0.0.1:8888/callback`, and add
+your account under *User Management*. Copy its **Client ID** into `config.env` (no Client Secret
+is needed):
 
 ```bash
 cp config.example.env config.env
 ```
 
-`config.env` can also point to interpreters elsewhere (`PYTHON`, `PYTHON_ESSENTIA`); by default
-`runner.sh` uses `.venv/` and `.venv-essentia/` in this folder. It is never committed.
-
-**5. Genres (optional).** Genres are guessed per artist; to set them yourself, copy the example
-and add one `artist;genre` line per artist:
-
-```bash
-cp data/artist_genres.example.csv data/artist_genres.csv
-```
-
-**6. First run and Spotify login.** The first export must be run by hand: it opens the browser
-to approve access, then the login renews itself.
+**3. First run.** The first export opens the browser to approve access; after that the login
+renews itself. The first full run downloads and analyses your whole library, so it takes a while.
 
 ```bash
 cd scripts && ../.venv/bin/python spotify_export.py
-```
-
-```bash
-scripts/runner.sh
-```
-
-The first full run downloads and analyses your whole library, which can take a while.
-
-## Everyday use
-
-The examples below run from `scripts/` with the main environment active
-(`source ../.venv/bin/activate`), so `python` is that interpreter.
-
-### Update the library
-
-```bash
 ./runner.sh
 ```
 
-Exports your top tracks (last 4 weeks, 6 months, all time) and Liked Songs, cleans up the
-library, downloads new songs, checks versions, evens out loudness, analyses the new MP3s,
-rebuilds `all_songs.csv` and the playlists, and refreshes `MP3 Player Card/`. Log: `logs/`.
-Exit code: 0 ok, 1 a step failed (see the log), 2 everything else ran but Spotify needs a login
-(run `python spotify_export.py` by hand once). Only the last 30 run logs are kept.
-
-### Song versions (studio vs live, covers, karaoke)
-
-Every MP3 should come from the **official studio track** on YouTube Music. Downloads look for it
-first (title, artist and duration), skipping live versions and non-original ones (karaoke,
-instrumental, piano, cover, remix…) unless the Spotify title asks for them. `version_audit.py`
-(run by `runner.sh`) checks which video each MP3 came from and swaps music videos, live takes,
-covers and user uploads for the studio track when there is one; the old MP3 goes to the trash.
-
-When YouTube Music doesn't have Spotify's exact version, the closest one is downloaded and left
-**pending review**: approve it to keep it, or remove it (the previous MP3 comes back if there was
-one; otherwise the song leaves the library and is never downloaded again). From the phone
-(Inicio > "Versiones para revisar", with streaming playback) or the Mac:
+**4. Phone app.** Install the Mac agent (it starts at login) and build the app:
 
 ```bash
-python version_review.py            # one by one: [p] listen, [a] approve, [q] remove
-python version_review.py --list
-python version_review.py --undo "Artist - Title"   # back to pending
-python version_audit.py --dry-run   # report only
+../.venv/bin/python agent_server.py --install
+cd ../android && ./gradlew assembleRelease
 ```
 
-### Loudness
+Install `android/app/build/outputs/apk/release/app-release.apk` on the phone. Then in the app:
+Ajustes > "Pedir código al Mac"; the code appears in a Mac notification.
 
-`loudness.py` (run by `runner.sh`) brings every MP3 to about −11 LUFS without re-encoding: like
-mp3gain, it changes the gain field of each MP3 frame in 1.5 dB steps, so quality is untouched,
-it works on any player and it can be undone (`--undo`; `--dry-run` only measures).
+<details>
+<summary>Signing with your own key</summary>
 
-### Playlists from your MP3s
+By default the APK is signed with your debug key. To use your own, create a key (back it up with
+its password) and point `android/keystore.properties` to it:
 
 ```bash
-python playlist_builder.py                    # list the example playlists
-python playlist_builder.py "Spanish Pop Sad"  # build one (--all = all of them)
+keytool -genkeypair -keystore ~/mimusica-release.jks -storetype PKCS12 -alias mimusica -keyalg RSA -keysize 4096 -validity 10000
 ```
 
-Add your own to `PRESETS` in `playlist_builder.py`, or create them from the phone app:
+```properties
+storeFile=/Users/<you>/mimusica-release.jks
+storePassword=<password>
+keyAlias=mimusica
+keyPassword=<password>
+```
+</details>
+
+Optional: to set genres yourself, copy `data/artist_genres.example.csv` to
+`data/artist_genres.csv` and add one `artist;genre` line per artist.
+
+## How it works
+
+```mermaid
+flowchart TD
+    S([Spotify<br/>top tracks + Liked Songs]) --> D[Download<br/>studio versions from YouTube Music]
+    D --> L[(MP3 library)]
+    L --> A[Local analysis<br/>energy · mood · BPM · key · genre]
+    A --> P[Playlists<br/>rebuilt on every run]
+    P --> C([MP3 player card])
+    P --> U([Private Spotify playlists])
+    APP([Mi Música app]) <-->|home Wi-Fi| AG[Mac agent]
+    AG -.->|runs updates,<br/>edits playlists| P
+```
+
+`scripts/runner.sh` runs the whole chain; `scripts/agent_server.py` is the Mac agent the phone
+talks to.
+
+- **Python** scripts: spotipy, spotDL, ytmusicapi, pandas, mutagen; FastAPI and zeroconf for the
+  agent; `launchd` keeps the agent and the player sync running.
+- **Essentia** pretrained models for the audio analysis, in their own environment.
+- **Android app**: Kotlin and Jetpack Compose.
+- **Plain files instead of a database**: a CSV library, `.m3u8` playlists that any player opens,
+  and JSON state.
+
+## Technical decisions
+- **The studio track, not a live video.** Downloads look for the official studio track on
+  YouTube Music and skip live, karaoke or cover versions. A later check swaps any that slipped
+  through; doubtful matches wait for you to listen and decide from the phone.
+- **Audio features without Spotify.** Spotify no longer shares audio features with new apps, so
+  every song is measured locally with Essentia's models. Tempo agreed with Spotify's more often
+  than with librosa in our tests. Low / Medium / High are relative to your own library: "high
+  energy" means high for what you listen to.
+- **Genre per artist, for now.** Your own `artist;genre` table wins; otherwise the genre is
+  guessed from the artist's country (MusicBrainz), the language of the titles and the sound
+  Essentia hears. Genres per song are a possible next step.
+- **Lossless loudness.** Like mp3gain, the volume is evened out without re-encoding, works on any
+  player and can be undone.
+- **Playlists as saved queries.** New matching songs come in by themselves; songs you remove by
+  hand never come back, and songs you add stay.
+- **Cleanup that can't wipe the library.** Songs leave only after a fresh export, never too many
+  at once, and through a 7-day trash. To keep a song, save it to Liked Songs.
+- **Offline-first app, secure pairing.** The phone works with its last copy and queues orders
+  for the Mac. Pairing needs a code shown on the Mac, and the agent only answers on the home
+  network.
+
+## Everyday use
+From `scripts/`, with the main environment active (`source ../.venv/bin/activate`). The
+scripts that change files (`library_cleanup.py`, `version_audit.py`, `loudness.py`,
+`spotify_upload.py`, `mp3_export.py`) accept `--dry-run` to see what they would do.
+
+| Command | What it does |
+|---|---|
+| `./runner.sh` | Updates everything: export, cleanup, downloads, versions, loudness, analysis, playlists, MP3 export. Exit code 2 = Spotify needs a login (run `python spotify_export.py` once) |
+| `python version_review.py` | Review doubtful song versions: listen, approve or remove (also from the app) |
+| `python playlist_builder.py "<name>"` | Build one example playlist (no name = list them, `--all` = all) |
+| `python spotify_upload.py "<name>"` | Publish a playlist to Spotify as private |
+| `python spotify_playlists.py` | List your own Spotify playlists; `--download <id>` adds one to the library |
+| `python mp3_export.py --card "/Volumes/<CARD>"` | Sync the player's card by hand |
+| `python mp3_autosync.py --install` | Sync automatically when the player is plugged in (asks first) |
+| `python agent_server.py --unblock` | Lift pairing blocks after too many wrong codes |
+
+**Your own playlists.** Create them from the app, or add them to `PRESETS` in
+`playlist_builder.py`:
 
 ```python
-"Indie Tranquilo": {
-    "criteria": {"genre": ["Spanish Indie", "Indie Pop"], "energy_group": "Low"},
+"Running": {
+    "criteria": {"energy_group": "High", "bpm_exact_min": 140},
     "limit": 40,
+    "order_by": "bpm_exact",
 },
 ```
 
-| Criterion | Values |
-|---|---|
-| `genre` | Spanish Pop, Spanish Indie, Spanish Urban, Spanish Rap, Spanish Rock, Catalan Pop, Latin Pop, Urbano Latino, Pop, Indie Pop, Hip Hop, Rock, Electronic… |
-| `genre_family` | Pop, Indie, Urban, Rap, Rock, Electronic, Regional, Country, Classical |
-| `energy_group`, `danceability_group` | Low, Medium, High (thirds of your own library) |
-| `valence_group` | Dark/Sad, Neutral, Happy/Upbeat |
-| `mode` | major, minor |
-| `energy_min`, `bpm_exact_max`, … | numeric limits (0-100; BPM) |
-| `valence: 30`, `bpm_exact: 124` | numeric target: the closest songs go first |
-| `genre_not` | exclude |
+Criteria: `genre`, `genre_family`, `genre_not`, `energy_group` / `danceability_group`
+(Low, Medium, High), `valence_group` (Dark/Sad, Neutral, Happy/Upbeat), `mode` (major, minor),
+numeric limits such as `energy_min` or `bpm_exact_max` (0-100; BPM), and numeric targets such as
+`valence: 30` (closest songs first).
 
-Output: `Playlists/<name>.m3u8` (opens in Music or VLC). Playlists are rebuilt on every run, so
-new matching songs come in by themselves. Songs you remove from a playlist in the app never come
-back, and songs you add stay even if they don't match (`excluded` / `pinned` in
-`Playlists/playlists.json`).
-
-### Library cleanup
-
-`runner.sh` runs it after each successful export: MP3s of songs that are no longer in your top
-tracks or Liked Songs go to `Papelera MP3/<date>/` (emptied after 7 days) and leave
-`all_songs.csv` and every playlist. **To keep a song, save it to Liked Songs.** It does nothing
-if the export is older than 12 h or would remove more than 40 % of the library at once
-(`--force` skips these checks).
-
-```bash
-python library_cleanup.py --dry-run   # what would be removed, nothing is touched
-```
-
-### Upload playlists to Spotify (private)
-
-```bash
-python spotify_upload.py                    # list the available playlists
-python spotify_upload.py "Spanish Pop Sad"  # upload (--dry-run = test only)
-```
-
-Uploading again replaces the songs of the playlist this script created; playlists you made by
-hand are never touched.
-
-### Download your Spotify playlists
-
-In the app (Playlists > "Playlists de mi Spotify") or from the Mac:
-
-```bash
-python spotify_playlists.py                   # list your playlists
-python spotify_playlists.py --download <id>   # download it (next ./runner.sh)
-python spotify_playlists.py --stop <id>       # stop
-```
-
-Spotify only lets an app read **your own** playlists (not other people's or Spotify's automatic
-ones).
-
-### MP3 player
-
-`MP3 Player Card/` holds every MP3 (ASCII file names, which basic players need) plus one `.m3u`
-per playlist, ready for the root of the player's card. It was built for a Yoton YM03 (Actions
-chip) and should work with similar players. Sync a mounted card:
-
-```bash
-python mp3_export.py --card "/Volumes/<CARD>" --dry-run   # what it would do
-python mp3_export.py --card "/Volumes/<CARD>"             # copy new/changed, remove old
-```
-
-Or sync automatically whenever you plug the player in (a Mac dialog asks first):
-
-```bash
-python mp3_autosync.py --install
-```
-
-`--forget` forgets the known player and `--uninstall` removes the automation. It only touches
-`.mp3`/`.m3u` files in the card's root, deletes the player's playlist cache (`M3U.LIB`) so new
-playlists show up, and refuses if the export has far fewer songs than the card.
-
-## Phone app (Android)
-
-**On the Mac**, install the agent once; it then starts at login and keeps the Mac awake only
-while a job runs:
-
-```bash
-python agent_server.py --install
-```
-
-**Build the app** with Android Studio (open `android/`) or from the command line, with
-`ANDROID_HOME` and a JDK 17 set up:
-
-```bash
-cd android && ./gradlew assembleDebug
-```
-
-Install `android/app/build/outputs/apk/debug/app-debug.apk` on the phone (allow "unknown
-sources" once). Then in the app: Ajustes > "Pedir código al Mac"; the code appears in a Mac
-notification.
-
-- **Jobs** (update the library, build or publish a playlist…) wait on the phone if the Mac is
-  off or asleep and are sent by themselves when it is reachable.
-- **Offline:** the phone keeps a copy of the last data it got; you can browse, edit and create
-  playlists without the Mac, and changes are applied when it syncs.
-- **Pairing security:** each device can ask for 3 codes every 10 min; 5 wrong codes block that
-  device for 24 h (others can still pair). Suspicious attempts show a Mac notification. To
-  unblock: `python agent_server.py --unblock` (all) or `--unblock <ip>`.
-- The agent only accepts connections from the local network and serves plain HTTP with a token,
-  so use it on a network you trust.
-
-Restart the agent after changing its code:
-
-```bash
-launchctl kickstart -k gui/$(id -u)/com.spotmp3.agent
-```
+**MP3 player.** `MP3 Player Card/` holds every MP3 with plain file names and one `.m3u` per
+playlist, ready for the root of the card. Built for a Yoton YM03; similar basic players should
+work.
 
 ## Privacy
-
-Everything personal stays on your Mac and is ignored by git: `config.env` (your Client ID),
-`data/` (your library, listening data, genres, reviews, the Spotify login and phone tokens),
-the music, playlists and logs. Nothing is sent anywhere except the requests to Spotify, YouTube
-Music, MusicBrainz and ReccoBeats needed to build the library.
+Everything personal stays on your Mac and is ignored by git: `config.env`, `data/` (library,
+listening data, reviews, the Spotify login and phone tokens), the music, playlists and logs.
+Nothing is sent anywhere except the requests to Spotify, YouTube Music, MusicBrainz and
+ReccoBeats needed to build the library. The screenshots above use invented demo data.
 
 ## License
-
-[MIT](LICENSE) for this project's code. The third-party components below keep their own licenses.
-
-## Third-party components
-
+[MIT](LICENSE) for this project's code. Third-party components keep their own licenses:
 [spotDL](https://github.com/spotDL/spotify-downloader) (MIT),
 [spotipy](https://github.com/spotipy-dev/spotipy) (MIT),
 [ytmusicapi](https://github.com/sigma67/ytmusicapi) (MIT) and
