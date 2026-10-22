@@ -39,15 +39,15 @@ or an upbeat "Verano 2026", and you can adjust them from your phone.
   updates; orders made while the Mac is asleep run when it is back.
 
 ## Getting started
-You need a Mac, Python 3.10+ (plus Python 3.10 exactly for the audio analysis;
-[uv](https://docs.astral.sh/uv/) makes that easy), a Spotify account and, for the app, an
-Android phone and the Android SDK with JDK 21.
+You need a Mac, [uv](https://docs.astral.sh/uv/) (it installs Python 3.11+ and the Python 3.10
+the audio analysis needs), a Spotify account and, for the app, an Android phone and the Android
+SDK with JDK 21.
 
 **1. Install** (from the project folder; ~40 MB of models go to `models/`):
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -r requirements.txt --overrides requirements-overrides.txt
 .venv/bin/spotdl --download-ffmpeg
 uv venv --python 3.10 .venv-essentia
 uv pip install --python .venv-essentia/bin/python -r requirements-essentia.txt

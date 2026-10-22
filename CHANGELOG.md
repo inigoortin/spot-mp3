@@ -1,5 +1,15 @@
 # Changelog
 
+## Mac agent security update
+
+- The agent's web stack is upgraded to fix known vulnerabilities: FastAPI 0.159.1, Starlette 1.9.0,
+  uvicorn 0.54.0, anyio 4.15.1, requests 2.33.1, certifi 2026.10.19. The phone app needs no update.
+- The main environment now needs Python 3.11+ and is installed with uv, because spotdl's own
+  FastAPI pin has to be overridden (`requirements-overrides.txt`). Existing installs: recreate it
+  with `uv venv --python 3.11 --clear .venv` and the install line from the README, then restart
+  the agent.
+- POST requests to the agent must send `Content-Type: application/json` (the app always does).
+
 ## Mi Música 1.12
 
 - The connection dot on the profile circle is no longer cut off in the top bar.
