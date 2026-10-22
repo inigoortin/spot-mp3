@@ -33,6 +33,7 @@ import sys
 import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 import pandas as pd
@@ -69,7 +70,13 @@ JOB_TYPES = {"refresh", "build_playlist", "publish", "rebuild_playlists", "edit_
              "review_version", "spotify_playlist"}
 INSTANT_JOBS = {"edit_playlist", "delete_playlist", "review_version", "spotify_playlist"}   # applied on arrival, without going through the queue
 
-app = FastAPI(title="spot-mp3 agent", version=VERSION)
+@asynccontextmanager
+async def lifespan(_app):
+    await startup()   # defined below, next to the worker and the Wi-Fi advertising it starts
+    yield
+
+
+app = FastAPI(title="spot-mp3 agent", version=VERSION, lifespan=lifespan)
 _lock = threading.RLock()
 _loop = None            # uvicorn's asyncio loop (to notify WebSockets from the worker thread)
 _sockets = set()
@@ -976,7 +983,6 @@ def keep_awake_while(pid):
     subprocess.Popen(["caffeinate", "-i", "-s", "-w", str(pid)])
 
 
-@app.on_event("startup")
 async def startup():
     global _loop
     _loop = asyncio.get_running_loop()
