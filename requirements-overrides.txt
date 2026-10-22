@@ -1,0 +1,6 @@
+# spotdl 4.5.2 pins fastapi<0.104 and uvicorn<0.24 for its "spotdl web" mode, which this project
+# does not use. These newer versions fix known security issues in FastAPI/Starlette and are what
+# the phone agent runs on. pip cannot override a dependency's pins, so install with uv:
+#   uv pip install -r requirements.txt --overrides requirements-overrides.txt
+fastapi==0.159.1
+uvicorn==0.54.0
